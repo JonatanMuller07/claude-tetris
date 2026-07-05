@@ -1,0 +1,71 @@
+name: Claude Issue Triage
+
+on:
+  issues:
+    types: [opened, edited]
+
+jobs:
+  triage:
+    if: github.event.sender.type != 'Bot'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      issues: write
+      id-token: write
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: Run Claude Code Triage
+        id: claude-triage
+        uses: anthropics/claude-code-action@v1
+        with:
+          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          claude_args: '--allowed-tools "Bash(gh issue view:*),Bash(gh issue edit:*),Bash(gh issue comment:*),Bash(gh label list:*),Bash(gh label create:*)"'
+          prompt: |
+            Analiza el issue #${{ github.event.issue.number }} del repositorio ${{ github.repository }}.
+
+            Este es un proyecto de Tetris en JavaScript vanilla (index.html, style.css, game.js).
+            La logica del juego vive en game.js: modelo de tablero, piezas, colisiones (collide),
+            wall kicks (tryRotate), loop del juego, clearLines, scoring, ghost piece, etc.
+
+            Pasos a seguir:
+
+            1. Lee el issue con `gh issue view ${{ github.event.issue.number }} --json title,body,comments`
+               para obtener titulo, cuerpo y comentarios existentes.
+
+            2. Revisa los labels disponibles con `gh label list`. Aplica los que correspondan
+               (por ejemplo bug, enhancement, documentation, question). Si ninguno describe bien
+               el problema, crea labels nuevos con `gh label create` (con color y descripcion
+               apropiados), por ejemplo labels de area (area:game-logic, area:ui, area:scoring)
+               o de severidad (severity:high, severity:low). No dupliques labels que ya existan
+               con distinto nombre pero mismo significado.
+
+            3. Aplica los labels elegidos al issue con
+               `gh issue edit ${{ github.event.issue.number }} --add-label "..."`.
+
+            4. Revisa los comentarios del issue (paso 1). Si ya existe un comentario previo de
+               diagnostico (uno que empiece con el encabezado "## Diagnostico de Claude"), no
+               publiques uno nuevo separado: actualiza el diagnostico existente usando
+               `gh issue comment ${{ github.event.issue.number }} --edit-last --body "..."`.
+               Si no existe todavia, crea uno nuevo con
+               `gh issue comment ${{ github.event.issue.number }} --body "..."`.
+
+            5. El comentario de diagnostico debe estar en espanol, con este formato:
+
+               ## Diagnostico de Claude
+
+               **Resumen del problema:** ...
+
+               **Causa probable:** explica la causa tecnica, referenciando archivos y funciones
+               concretas cuando aplique (ej. game.js, funcion collide o tryRotate).
+
+               **Archivos/funciones afectados:** lista de archivos o funciones relevantes.
+
+               **Pasos sugeridos para la solucion:** pasos concretos y accionables que sirvan
+               como base para implementar el fix o la funcionalidad despues.
+
+               Se conciso pero especifico. Este diagnostico se va a usar como insumo para
+               programar la solucion real, asi que prioriza precision tecnica sobre generalidades.
