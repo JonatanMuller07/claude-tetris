@@ -13,6 +13,7 @@ const COLORS = [
   '#e57373', // Z - red
   '#90caf9', // J - pale blue
   '#ffb74d', // L - orange
+  '#b0bec5', // N - tuerca (nut)
 ];
 
 const PIECES = [
@@ -24,7 +25,12 @@ const PIECES = [
   [[5,5,0],[0,5,5],[0,0,0]],                  // Z
   [[6,0,0],[6,6,6],[0,0,0]],                  // J
   [[0,0,7],[7,7,7],[0,0,0]],                  // L
+  [[8,8,8],[8,0,8],[8,8,8]],                  // N - tuerca (hollow center)
 ];
+
+// spawn weight per piece type (index = type, 0 unused); classic pieces are
+// twice as likely as the tuerca, so it shows up roughly ~6.7% of the time
+const PIECE_WEIGHTS = [0, 2, 2, 2, 2, 2, 2, 2, 1];
 
 const LINE_SCORES = [0, 100, 300, 500, 800];
 
@@ -53,8 +59,18 @@ function createBoard() {
   return Array.from({ length: ROWS }, () => new Array(COLS).fill(0));
 }
 
+function weightedRandomType() {
+  const totalWeight = PIECE_WEIGHTS.reduce((sum, w) => sum + w, 0);
+  let roll = Math.random() * totalWeight;
+  for (let type = 1; type < PIECE_WEIGHTS.length; type++) {
+    roll -= PIECE_WEIGHTS[type];
+    if (roll < 0) return type;
+  }
+  return PIECE_WEIGHTS.length - 1;
+}
+
 function randomPiece() {
-  const type = Math.floor(Math.random() * 7) + 1;
+  const type = weightedRandomType();
   const shape = PIECES[type].map(row => [...row]);
   return { type, shape, x: Math.floor(COLS / 2) - Math.floor(shape[0].length / 2), y: 0 };
 }
